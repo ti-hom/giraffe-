@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>My Money</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#1f7a5c">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="My Money">
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f6f5f1;--card:#fff;--tx:#1d2320;--mu:#6b746f;--ac:#1f7a5c;--bd:#e3e1da;--rd:#c0392b}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#141816;--card:#1e2421;--tx:#eceee9;--mu:#9aa39e;--ac:#3fbf93;--bd:#2f3733;--rd:#e5786b}}
+:root[data-theme="dark"]{--bg:#141816;--card:#1e2421;--tx:#eceee9;--mu:#9aa39e;--ac:#3fbf93;--bd:#2f3733;--rd:#e5786b}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.4 system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:760px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:4px 0 12px}
+nav{display:flex;gap:6px;margin-bottom:14px;overflow-x:auto}
+nav button{flex:1;padding:9px 12px;border:1px solid var(--bd);background:var(--card);color:var(--tx);border-radius:10px;font:inherit;cursor:pointer;white-space:nowrap}
+nav button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:14px;padding:14px;margin-bottom:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.big{font-size:24px;font-weight:650}.mu{color:var(--mu);font-size:13px}
+form{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:8px;align-items:end}
+label{display:flex;flex-direction:column;font-size:12px;color:var(--mu);gap:3px}
+input,select{padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--tx);font:inherit;width:100%}
+.btn{padding:9px 14px;border:0;border-radius:8px;background:var(--ac);color:#fff;font:inherit;cursor:pointer}
+.btn.g{background:transparent;color:var(--mu);border:1px solid var(--bd)}
+.tw{overflow-x:auto}table{width:100%;border-collapse:collapse}
+td,th{padding:8px 6px;border-bottom:1px solid var(--bd);text-align:left;white-space:nowrap}th{font-size:12px;color:var(--mu);font-weight:500}
+.in{color:var(--ac)}.out{color:var(--rd)}
+.x{background:none;border:0;color:var(--mu);cursor:pointer;font-size:16px}
+.soon{background:#f5b94133;padding:1px 6px;border-radius:6px;font-size:12px}
+.row{display:flex;justify-content:space-between;gap:8px;padding:5px 0}
+</style></head><body><main>
+<h1>💰 My Money</h1>
+<nav id="nav"></nav>
+<div id="v"></div>
+<div class="mu" style="text-align:center;margin-top:16px">
+<button class="btn g" onclick="exp()">Export backup</button>
+<button class="btn g" onclick="document.getElementById('imp').click()">Import</button>
+<input id="imp" type="file" accept=".json" hidden onchange="imp(event)">
+<p>Data is stored in this browser only. Export a backup now and then.</p></div>
+</main>
+<script>
+const KEY='mymoney_v1';
+let S={cur:'€',tx:[],subs:[]},tab='Overview';
+try{const r=localStorage.getItem(KEY);if(r)S=Object.assign(S,JSON.parse(r))}catch(e){}
+const save=()=>{try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}};
+const $=id=>document.getElementById(id);
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const money=n=>S.cur+(+n).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+const today=()=>new Date().toISOString().slice(0,10);
+const CYC={weekly:52/12,monthly:1,quarterly:1/3,yearly:1/12};
+const METHODS=['Card','Google Pay','Apple Pay','PayPal','Bank debit','Cash','Other'];
+const nextDate=s=>{let d=new Date(s.date+'T00:00:00'),t=new Date();t.setHours(0,0,0,0);let i=0;
+ while(d<t&&i<600){i++;if(s.cycle=='weekly')d.setDate(d.getDate()+7);else{const m=s.cycle=='monthly'?1:s.cycle=='quarterly'?3:12;d.setMonth(d.getMonth()+m)}}return d};
+const fmt=d=>d.toISOString?d.toLocaleDateString(undefined,{day:'numeric',month:'short',year:'numeric'}):d;
+const daysTo=d=>{const t=new Date();t.setHours(0,0,0,0);return Math.round((d-t)/864e5)};
+function bal(){const b={};S.tx.forEach(t=>b[t.tool]=(b[t.tool]||0)+(t.type=='in'?1:-1)*t.amt);return b}
+function nav(){$('nav').innerHTML=['Overview','Savings','Subscriptions'].map(t=>`<button class="${t==tab?'on':''}" onclick="tab='${t}';draw()">${t}</button>`).join('')}
+function draw(){nav();$('v').innerHTML=({Overview:ov,Savings:sv,Subscriptions:sb})[tab]()}
+function ov(){const b=bal(),tot=Object.values(b).reduce((a,c)=>a+c,0);
+ const act=S.subs.filter(s=>s.on!==false),mo=act.reduce((a,s)=>a+s.amt*CYC[s.cycle],0);
+ const m=today().slice(0,7),inM=S.tx.filter(t=>t.date.startsWith(m)&&t.type=='in').reduce((a,t)=>a+t.amt,0),outM=S.tx.filter(t=>t.date.startsWith(m)&&t.type=='out').reduce((a,t)=>a+t.amt,0);
+ const up=act.map(s=>({s,d:nextDate(s)})).sort((a,b)=>a.d-b.d).slice(0,4);
+ return `<div class="grid">
+ <div class="card"><div class="mu">Total savings</div><div class="big">${money(tot)}</div></div>
+ <div class="card"><div class="mu">Subscriptions / month</div><div class="big">${money(mo)}</div><div class="mu">${money(mo*12)} / year</div></div>
+ <div class="card"><div class="mu">This month</div><div class="in">+ ${money(inM)}</div><div class="out">− ${money(outM)}</div></div></div>
+ <div class="card"><b>By financial tool</b>${Object.keys(b).length?Object.entries(b).sort((a,c)=>c[1]-a[1]).map(([k,v])=>`<div class="row"><span>${esc(k)}</span><b>${money(v)}</b></div>`).join(''):'<p class="mu">Nothing yet. Add a deposit in Savings.</p>'}</div>
+ <div class="card"><b>Next payments</b>${up.length?up.map(({s,d})=>`<div class="row"><span>${esc(s.name)} <span class="mu">· ${esc(s.method)}</span></span><span>${fmt(d)} · ${money(s.amt)}</span></div>`).join(''):'<p class="mu">No subscriptions yet.</p>'}</div>
+ <div class="card"><label>Currency symbol<input value="${esc(S.cur)}" maxlength="4" onchange="S.cur=this.value||'€';save();draw()" style="max-width:100px"></label></div>`}
+function sv(){const tools=[...new Set(S.tx.map(t=>t.tool))];
+ return `<div class="card"><form onsubmit="addTx(event)">
+ <label>Type<select name="type"><option value="in">Deposit</option><option value="out">Withdrawal</option></select></label>
+ <label>Amount<input name="amt" type="number" step="0.01" min="0" required></label>
+ <label>Financial tool<input name="tool" list="tl" placeholder="e.g. Savings account" required><datalist id="tl">${tools.map(t=>`<option value="${esc(t)}">`).join('')}</datalist></label>
+ <label>Date<input name="date" type="date" value="${today()}" required></label>
+ <label>Note<input name="note" placeholder="optional"></label>
+ <button class="btn">Add</button></form></div>
+ <div class="card tw"><table><tr><th>Date</th><th>Tool</th><th>Amount</th><th>Note</th><th></th></tr>
+ ${[...S.tx].sort((a,b)=>b.date.localeCompare(a.date)).map(t=>`<tr><td>${t.date}</td><td>${esc(t.tool)}</td><td class="${t.type}">${t.type=='in'?'+':'−'}${money(t.amt)}</td><td>${esc(t.note)}</td><td><button class="x" onclick="del('tx','${t.id}')">✕</button></td></tr>`).join('')||'<tr><td colspan=5 class="mu">No entries yet.</td></tr>'}</table></div>`}
+function sb(){const mo=S.subs.filter(s=>s.on!==false).reduce((a,s)=>a+s.amt*CYC[s.cycle],0);
+ return `<div class="card"><form onsubmit="addSub(event)">
+ <label>Name<input name="name" placeholder="e.g. Netflix" required></label>
+ <label>Amount<input name="amt" type="number" step="0.01" min="0" required></label>
+ <label>Billing<select name="cycle"><option>monthly</option><option>yearly</option><option>quarterly</option><option>weekly</option></select></label>
+ <label>A payment date<input name="date" type="date" value="${today()}" required></label>
+ <label>Paid with<select name="method">${METHODS.map(m=>`<option>${m}</option>`).join('')}</select></label>
+ <button class="btn">Add</button></form></div>
+ <div class="card"><b>${money(mo)}</b> <span class="mu">per month · ${money(mo*12)} per year</span></div>
+ <div class="card tw"><table><tr><th>Name</th><th>Amount</th><th>Billing</th><th>Next payment</th><th>Paid with</th><th>Active</th><th></th></tr>
+ ${S.subs.map(s=>{const d=nextDate(s),n=daysTo(d);return `<tr style="opacity:${s.on===false?.45:1}"><td>${esc(s.name)}</td><td>${money(s.amt)}</td><td>${s.cycle}</td><td>${fmt(d)} ${s.on!==false&&n<=7?`<span class="soon">${n==0?'today':'in '+n+'d'}</span>`:''}</td><td>${esc(s.method)}</td><td><input type="checkbox" ${s.on!==false?'checked':''} onchange="tog('${s.id}')" style="width:auto"></td><td><button class="x" onclick="del('subs','${s.id}')">✕</button></td></tr>`}).join('')||'<tr><td colspan=7 class="mu">No subscriptions yet.</td></tr>'}</table></div>`}
+function addTx(e){e.preventDefault();const f=new FormData(e.target);S.tx.push({id:uid(),type:f.get('type'),amt:+f.get('amt'),tool:f.get('tool').trim(),date:f.get('date'),note:f.get('note')});save();draw()}
+function addSub(e){e.preventDefault();const f=new FormData(e.target);S.subs.push({id:uid(),name:f.get('name'),amt:+f.get('amt'),cycle:f.get('cycle'),date:f.get('date'),method:f.get('method'),on:true});save();draw()}
+function del(k,id){if(confirm('Delete this entry?')){S[k]=S[k].filter(x=>x.id!=id);save();draw()}}
+function tog(id){const s=S.subs.find(x=>x.id==id);s.on=s.on===false;save();draw()}
+async function exp(){const data=JSON.stringify(S,null,2),name='my-money-backup.json';
+ try{const d=await claude.use('downloads');if(d){await d.save({filename:name,data});return}}catch(e){}
+ try{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download=name;a.click()}catch(e){}}
+function imp(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const j=JSON.parse(r.result);if(Array.isArray(j.tx)&&Array.isArray(j.subs)){S=Object.assign({cur:'€'},j);save();draw()}else alert('Not a valid backup file')}catch(x){alert('Could not read file')}};r.readAsText(f)}
+draw();
+if('serviceWorker' in navigator){window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').catch(()=>{})})}
+</script></body></html>
